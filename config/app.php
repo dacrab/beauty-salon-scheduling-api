@@ -84,6 +84,9 @@ return [
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
+    // Simple bearer token for API auth in this challenge
+    'api_token' => env('API_TOKEN', ''),
+
     /*
     |--------------------------------------------------------------------------
     | Encryption Key

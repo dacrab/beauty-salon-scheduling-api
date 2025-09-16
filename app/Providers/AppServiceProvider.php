@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Route;
+use App\Http\Middleware\BearerTokenAuth;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +21,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Register API routes with bearer token middleware
+        Route::middleware([BearerTokenAuth::class])
+            ->prefix('api')
+            ->group(base_path('routes/api.php'));
     }
 }
