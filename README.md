@@ -6,8 +6,8 @@ Simple REST API for a beauty salon scheduling system built with Laravel 12. Full
 
 1) Clone and enter the project
 ```bash
-git clone https://github.com/dacrab/coding-task.git
-cd coding-task
+git clone https://github.com/dacrab/beauty-salon-scheduling-api.git
+cd beauty-salon-scheduling-api
 ```
 
 2) Create env file and set API token
