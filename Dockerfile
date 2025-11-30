@@ -32,7 +32,7 @@ RUN php artisan key:generate \
     && php artisan l5-swagger:generate \
     && php artisan view:cache
 
-ENV PORT=8000
-EXPOSE 8000
+ENV PORT=80
+EXPOSE 80
 
 CMD ["sh", "-c", "php artisan serve --host=0.0.0.0 --port=$(($PORT + 0))"]
