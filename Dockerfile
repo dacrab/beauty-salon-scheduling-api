@@ -30,7 +30,6 @@ RUN php artisan key:generate \
     && php artisan migrate --force \
     && php artisan db:seed --force \
     && php artisan l5-swagger:generate \
-    && php artisan route:cache \
     && php artisan view:cache
 
 ENV PORT=8000
