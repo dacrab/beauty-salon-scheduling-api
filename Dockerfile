@@ -26,13 +26,13 @@ ENV DB_DATABASE=/var/www/html/database/database.sqlite
 ENV API_TOKEN=demo-token-for-portfolio
 
 RUN php artisan key:generate --force \
-    && php artisan config:cache \
-    && php artisan route:cache \
-    && php artisan view:cache \
     && php artisan migrate --force \
     && php artisan db:seed --force \
-    && php artisan l5-swagger:generate
+    && php artisan l5-swagger:generate \
+    && php artisan route:cache \
+    && php artisan view:cache
 
+ENV PORT=8000
 EXPOSE 8000
 
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
+CMD php artisan serve --host=0.0.0.0 --port=${PORT}
