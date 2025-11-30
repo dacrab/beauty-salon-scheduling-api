@@ -2,13 +2,14 @@
 
 namespace App\Services;
 
+use App\Contracts\SchedulingServiceInterface;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\Specialist;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
-class SchedulingService
+class SchedulingService implements SchedulingServiceInterface
 {
     public function getAvailableSlots(Specialist $specialist, Service $service, Carbon $date): array
     {
