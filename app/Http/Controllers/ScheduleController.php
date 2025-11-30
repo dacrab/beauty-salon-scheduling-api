@@ -2,14 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\SchedulingServiceInterface;
+use App\Exceptions\OutsideWorkingHoursException;
+use App\Exceptions\SlotNotAvailableException;
+use App\Exceptions\SpecialistCannotProvideServiceException;
 use App\Http\Requests\BookAppointmentRequest;
 use App\Http\Requests\ListSlotsRequest;
+use App\Http\Resources\AppointmentResource;
+use App\Http\Resources\SlotResource;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\Specialist;
-use App\Services\SchedulingService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
 use OpenApi\Attributes as OA;
@@ -24,7 +30,7 @@ class ScheduleController extends Controller implements HasMiddleware
     }
 
     public function __construct(
-        private readonly SchedulingService $schedulingService
+        private readonly SchedulingServiceInterface $schedulingService
     ) {}
 
     #[OA\Get(
@@ -80,22 +86,19 @@ class ScheduleController extends Controller implements HasMiddleware
             new OA\Response(response: 422, description: 'Validation error'),
         ]
     )]
-    public function listSlots(ListSlotsRequest $request): JsonResponse
+    public function listSlots(ListSlotsRequest $request): AnonymousResourceCollection
     {
         $service = Service::findOrFail($request->validated('service_id'));
         $specialist = Specialist::findOrFail($request->validated('specialist_id'));
 
         if (! $this->schedulingService->canSpecialistProvideService($specialist, $service)) {
-            return response()->json([
-                'data' => [],
-                'message' => 'Selected specialist does not provide this service',
-            ]);
+            throw new SpecialistCannotProvideServiceException;
         }
 
         $date = Carbon::parse($request->validated('date'))->startOfDay();
         $slots = $this->schedulingService->getAvailableSlots($specialist, $service, $date);
 
-        return response()->json(['data' => $slots]);
+        return SlotResource::collection($slots);
     }
 
     #[OA\Post(
@@ -148,7 +151,7 @@ class ScheduleController extends Controller implements HasMiddleware
         $specialist = Specialist::findOrFail($request->validated('specialist_id'));
 
         if (! $this->schedulingService->canSpecialistProvideService($specialist, $service)) {
-            return response()->json(['message' => 'Specialist does not provide this service'], 422);
+            throw new SpecialistCannotProvideServiceException;
         }
 
         $date = Carbon::parse($request->validated('date'))->toDateString();
@@ -156,16 +159,18 @@ class ScheduleController extends Controller implements HasMiddleware
         $end = $start->copy()->addMinutes($service->duration_minutes);
 
         if (! $this->schedulingService->isWithinWorkingHours($start, $end)) {
-            return response()->json(['message' => 'Outside working hours'], 422);
+            throw new OutsideWorkingHoursException;
         }
 
         if ($this->schedulingService->hasConflict($specialist, $start, $end)) {
-            return response()->json(['message' => 'Slot no longer available'], 409);
+            throw new SlotNotAvailableException;
         }
 
         $appointment = $this->schedulingService->createAppointment($specialist, $service, $start);
 
-        return response()->json(['data' => $appointment], 201);
+        return (new AppointmentResource($appointment))
+            ->response()
+            ->setStatusCode(201);
     }
 
     #[OA\Delete(
