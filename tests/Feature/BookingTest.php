@@ -23,7 +23,7 @@ class BookingTest extends TestCase
     public function test_list_slots_returns_data(): void
     {
         $service = Service::first();
-        $specialist = Specialist::whereHas('services', fn($q)=>$q->whereKey($service->id))->first();
+        $specialist = Specialist::whereHas('services', fn ($q) => $q->whereKey($service->id))->first();
         $date = Carbon::now()->toDateString();
         $res = $this->withHeader('Authorization', 'Bearer test-token')
             ->getJson('/api/slots?date='.$date.'&service_id='.$service->id.'&specialist_id='.$specialist->id);
@@ -33,7 +33,7 @@ class BookingTest extends TestCase
     public function test_can_book_and_cancel(): void
     {
         $service = Service::first();
-        $specialist = Specialist::whereHas('services', fn($q)=>$q->whereKey($service->id))->first();
+        $specialist = Specialist::whereHas('services', fn ($q) => $q->whereKey($service->id))->first();
         $date = Carbon::now()->toDateString();
         // pick the first available slot to avoid conflicts with seeded data
         $slotsRes = $this->withHeader('Authorization', 'Bearer test-token')
@@ -60,5 +60,3 @@ class BookingTest extends TestCase
         $this->assertTrue(Appointment::find($appointmentId)->canceled);
     }
 }
-
-
