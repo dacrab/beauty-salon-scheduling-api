@@ -23,7 +23,7 @@ jobs:
       - uses: github/codeql-action/init@v4
         with:
           languages: php
-          tools: latest
+          tools: https://github.com/github/codeql/releases/latest/download/codeql-bundle-linux64.tar.gz
           build-mode: none
 
       - uses: github/codeql-action/analyze@v4
