@@ -1,0 +1,56 @@
+name: Security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 4 * * 1'
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  psalm:
+    name: Psalm Static Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run Psalm
+        run: |
+          if [ ! -f psalm.xml ] && [ ! -f psalm.xml.dist ]; then
+            ./vendor/bin/psalm --init src 3
+          fi
+          ./vendor/bin/psalm --output-format=github --no-progress
+        continue-on-error: true
+
+  trivy:
+    name: Trivy Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: aquasecurity/trivy-action@0.35.0
+        with:
+          scan-type: fs
+          format: sarif
+          output: trivy.sarif
+        continue-on-error: true
+
+      - uses: github/codeql-action/upload-sarif@v4
+        if: always() && hashFiles('trivy.sarif') != ''
+        with:
+          sarif_file: trivy.sarif
