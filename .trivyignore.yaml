@@ -1,0 +1,21 @@
+# Accepted Trivy findings. Each entry needs a reason: an untracked failure is
+# worse than no scan at all.
+misconfigurations:
+  # BearerTokenAuth rejects every request when app.api_token is empty, so the
+  # demo API needs a token to exist. It is a placeholder for a portfolio
+  # project, not a credential, and it is not a GitHub secret.
+  - id: DS-0031
+    paths:
+      - Dockerfile
+    statement: >-
+      Placeholder token for a portfolio demo, required for the API to function.
+      Never a real credential.
+
+  # Binding port 80 needs root, and Railway deploys this image as-is. Running
+  # as non-root means moving to 8080 and repointing docker-compose.
+  - id: DS-0002
+    paths:
+      - Dockerfile
+    statement: >-
+      Accepted: image listens on port 80, which requires root. Switch to a
+      non-root user on 8080 when the deployment is next reworked.
