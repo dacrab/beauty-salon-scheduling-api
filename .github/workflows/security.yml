@@ -35,4 +35,5 @@ jobs:
           # An unfixable advisory would redline the build with nothing to do.
           ignore-unfixed: true
           scanners: vuln,secret,misconfig
+          trivyignores: .trivyignore.yaml
           exit-code: '1'
