@@ -25,10 +25,13 @@ COPY --chown=${APP_USER} docker/php-fpm.conf /usr/local/etc/php-fpm.d/zz-app.con
 COPY --chown=${APP_USER} docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 # The image's stock www pool listens on a socket; replace it with the app's own.
+# .env is created here rather than copied so the build never depends on whether
+# the developer happens to have one locally.
 RUN rm -f /usr/local/etc/php-fpm.d/www.conf \
     && chmod +x /usr/local/bin/entrypoint.sh \
     && mkdir -p storage/framework/{cache/data,sessions,views} storage/logs storage/api-docs bootstrap/cache \
     && touch database/database.sqlite \
+    && cp .env.example .env \
     && chown -R ${APP_USER} .env storage bootstrap/cache database
 
 USER ${APP_USER}

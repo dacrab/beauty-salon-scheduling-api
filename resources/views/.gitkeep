@@ -1,0 +1,3 @@
+# Blade views are resolved from the l5-swagger package namespace, so this
+# directory is intentionally empty. It is tracked so `view:cache` has a path
+# and so the layout matches a standard Laravel app.
