@@ -20,11 +20,4 @@ class BookAppointmentRequest extends FormRequest
             'start_time' => ['required', 'date_format:H:i'],
         ];
     }
-
-    public function messages(): array
-    {
-        return [
-            'date.after_or_equal' => 'Appointments can only be booked for today or future dates.',
-        ];
-    }
 }

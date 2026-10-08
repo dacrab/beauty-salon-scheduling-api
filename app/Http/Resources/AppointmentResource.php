@@ -16,8 +16,6 @@ class AppointmentResource extends JsonResource
             'start_at' => $this->start_at->toIso8601String(),
             'end_at' => $this->end_at->toIso8601String(),
             'canceled' => $this->canceled,
-            'specialist' => new SpecialistResource($this->whenLoaded('specialist')),
-            'service' => new ServiceResource($this->whenLoaded('service')),
         ];
     }
 }

@@ -16,7 +16,7 @@ class BearerTokenAuth
         }
 
         $token = substr($header, 7);
-        $expected = (string) config('app.api_token');
+        $expected = (string) config('salon.api_token');
         if ($expected === '' || ! hash_equals($expected, $token)) {
             throw new UnauthorizedHttpException('Bearer', 'Invalid token');
         }

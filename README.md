@@ -1,88 +1,152 @@
 # Beauty Salon API
 
-Simple REST API for a beauty salon scheduling system built with Laravel 12. Fully containerized (Nginx + PHP-FPM) and ready to run with Docker.
+REST API for a beauty salon scheduling system, built with Laravel 12. Runs as a single
+container behind Nginx + PHP-FPM (no `php artisan serve`), with SQLite for storage and
+generated OpenAPI documentation.
 
-## Quick Start (Docker)
+## Quick start (Docker)
 
-1) Clone and enter the project
 ```bash
-git clone https://github.com/dacrab/beauty-salon-scheduling-api.git
-cd beauty-salon-scheduling-api
-```
-
-2) Create env file and set API token
-```bash
-cp .env.example .env
-echo "API_TOKEN=your-secret-api-token" >> .env
-```
-
-3) Start the stack
-```bash
+cp .env.example .env                      # .env is only used outside Docker
+echo "API_TOKEN=your-secret-token" >> .env
 docker compose up --build -d
+curl -H "Authorization: Bearer your-secret-token" \
+  "http://localhost:8081/api/slots?date=2030-01-01&service_id=1&specialist_id=1"
 ```
 
-4) App key, migrate, and seed
+The image is fully self-contained: it runs the migrations, seeds the sample data
+(3 specialists, 3 services, 9 appointments), and generates the OpenAPI spec at build
+time. Base URL: `http://localhost:8081`.
+
+`API_TOKEN` defaults to `demo-token-for-portfolio` inside the image; `docker compose`
+passes your `.env` value through. Override per-run with `-e API_TOKEN=...`.
+
+## Running without Docker
+
 ```bash
-docker compose exec app php artisan key:generate
-docker compose exec app php artisan migrate:fresh --seed
+composer install
+cp .env.example .env
+touch database/database.sqlite   # Laravel never creates this file for you
+php artisan key:generate
+php artisan migrate --seed
+php artisan serve                 # dev only
 ```
-
-Base URL: `http://localhost:8081`
 
 ## Authentication
 
-All endpoints require a bearer token header:
+Every `/api` endpoint requires a bearer token:
+
 ```
-Authorization: Bearer <your-secret-api-token>
+Authorization: Bearer <your-secret-token>
 ```
+
+The token is the single `API_TOKEN` value; there are no user accounts.
 
 ## Endpoints
 
-1) List available slots
+| Method | Path                       | Description                        |
+| ------ | -------------------------- | ---------------------------------- |
+| `GET`  | `/api/slots`               | List available slots for a service |
+| `POST` | `/api/book`                | Book an appointment                |
+| `DELETE` | `/api/appointments/{id}` | Cancel an appointment              |
+
+**List slots** — `?date=YYYY-MM-DD&service_id=1&specialist_id=1`:
+
 ```bash
-curl -H "Authorization: Bearer <token>" \
-  "http://localhost:8081/api/slots?date=2025-09-16&service_id=1&specialist_id=1"
+curl -H "Authorization: Bearer $API_TOKEN" \
+  "http://localhost:8081/api/slots?date=2030-01-01&service_id=1&specialist_id=1"
+# {"data":[{"specialist_id":1,"start_time":"...","end_time":"..."}, ...]}
 ```
 
-2) Book an appointment
+**Book** — returns `201`:
+
 ```bash
-curl -X POST \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  -d '{"date":"2025-09-16","service_id":1,"specialist_id":1,"start_time":"14:30"}' \
+curl -X POST -H "Authorization: Bearer $API_TOKEN" -H "Content-Type: application/json" \
+  -d '{"date":"2030-01-01","service_id":1,"specialist_id":1,"start_time":"14:30"}' \
   "http://localhost:8081/api/book"
 ```
 
-3) Cancel an appointment
+**Cancel** — frees the slot again by setting `canceled = true`:
+
 ```bash
-curl -X DELETE -H "Authorization: Bearer <token>" \
+curl -X DELETE -H "Authorization: Bearer $API_TOKEN" \
   "http://localhost:8081/api/appointments/5"
 ```
 
+Errors: `401` missing/invalid token, `404` unknown route or appointment, `409` slot
+already taken, `422` validation failure, outside working hours, or specialist does not
+offer the service.
+
+## Interactive docs
+
+- Swagger UI: <http://localhost:8081/api/documentation>
+- Raw OpenAPI 3.0 JSON: <http://localhost:8081/api/docs>
+
+The spec is generated from PHP 8 attributes in `app/Http/Controllers/Controller.php`
+and `ScheduleController.php`. To regenerate it by hand:
+`php artisan l5-swagger:generate`.
+
 ## Tests
+
 ```bash
-docker compose exec app php artisan test
+php artisan test          # 8 feature tests, in-memory SQLite
 ```
 
-## Reminder Command (bonus)
-Simulates sending reminders for appointments starting in ~3 hours. Writes to `storage/logs/laravel.log`.
+## Appointment reminders (bonus)
+
+Optional email-reminder feature. Instead of a mail driver it logs, as the task allows:
+
 ```bash
-docker compose exec app php artisan appointments:send-reminders
+php artisan appointments:send-reminders
+# writes "Reminder: Appointment #N ..." to storage/logs/laravel.log
 ```
 
-## Assumptions
-- Working hours: 09:00–18:00
-- Slot starts every 30 minutes
-- SQLite for portability
-- Appointments are canceled via a `canceled` flag (not deleted)
+It is scheduled every five minutes (`routes/console.php`), so reminders are picked up
+without a queue worker. Run `php artisan schedule:work` to activate the scheduler.
 
-## Project Structure (short)
+## Design decisions & assumptions
+
+- **Working hours** 09:00–18:00 UTC, same for all specialists — configurable via
+  `SALON_WORK_START` / `SALON_WORK_END`.
+- **Slots** start every 30 minutes (`SALON_SLOT_STEP`). A slot is offered only if the
+  service's full duration fits before closing and does not overlap the specialist's
+  existing appointments.
+- **Services** Haircut 50 min, Hairstyling 70 min, Manicure 25 min.
+- **Capabilities**: A does haircut + hairstyling, B haircut + manicure, C hairstyling +
+  manicure (seeded in `DatabaseSeeder`).
+- **Cancelling** sets a `canceled` flag rather than deleting, so a slot's history stays
+  queryable; canceled appointments no longer block bookings.
+- **Auth** is one shared `API_TOKEN`, compared with `hash_equals` in
+  `app/Http/Middleware/BearerTokenAuth.php`.
+- **Schema** is three tables (`specialists`, `services`, `specialist_service`) plus
+  `appointments`, with a composite index on `(specialist_id, start_at)`.
+
+## Layout
+
 ```
-app/                # Controllers, Middleware, Models
-database/           # Migrations, seeders, SQLite file
-docker/             # Nginx + PHP-FPM config
-routes/             # API routes and console commands
-tests/Feature/      # Feature tests for booking flow
-docker-compose.yml  # Services (app, web)
+app/Http/Controllers/     endpoints + OpenAPI attributes
+app/Http/Middleware/      bearer-token auth
+app/Http/Requests/        validation
+app/Http/Resources/       JSON shaping
+app/Models/               Eloquent models and query scopes
+app/Services/             scheduling logic (slot search, booking, cancel)
+app/Console/Commands/     reminder command
+config/salon.php          working hours, slot step, API token
+database/migrations/      schema
+database/seeders/         sample data
+docker/                   nginx + php-fpm config and entrypoint
+routes/api.php            the three routes
+tests/Feature/            feature tests
 ```
 
+## Configuration
+
+| Variable         | Default                | Purpose                     |
+| ---------------- | ---------------------- | --------------------------- |
+| `API_TOKEN`      | *(empty)*              | Bearer token for all routes |
+| `SALON_WORK_START` | `09:00`              | Working-hours start         |
+| `SALON_WORK_END` | `18:00`                | Working-hours end           |
+| `SALON_SLOT_STEP` | `30`                  | Minutes between slot starts |
+| `DB_CONNECTION`  | `sqlite`               | Database driver             |
+
+`API_TOKEN` must be set; while it is empty every request returns `401`.
