@@ -7,50 +7,32 @@ on:
     branches: [main, master]
   schedule:
     - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
-  security-events: write
 
 jobs:
-  psalm:
-    name: Psalm Static Analysis
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v6
-
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          tools: composer
-
-      - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist
-
-      - name: Run Psalm
-        run: |
-          if [ ! -f psalm.xml ] && [ ! -f psalm.xml.dist ]; then
-            ./vendor/bin/psalm --init src 3
-          fi
-          ./vendor/bin/psalm --output-format=github --no-progress
-        continue-on-error: true
-
   trivy:
     name: Trivy Vulnerability Scan
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
-
-      - uses: aquasecurity/trivy-action@0.35.0
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      # Table output, not SARIF: nothing consumes the file, and exit-code is
+      # what actually gates the workflow.
+      - uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # 0.35.0
         with:
           scan-type: fs
-          format: sarif
-          output: trivy.sarif
-        continue-on-error: true
-
-      - uses: github/codeql-action/upload-sarif@v4
-        if: always() && hashFiles('trivy.sarif') != ''
-        with:
-          sarif_file: trivy.sarif
+          format: table
+          severity: CRITICAL,HIGH
+          # An unfixable advisory would redline the build with nothing to do.
+          ignore-unfixed: true
+          scanners: vuln,secret,misconfig
+          exit-code: '1'
