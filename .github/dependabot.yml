@@ -1,6 +1,8 @@
 version: 2
+
+# Both ecosystems share an identical policy, so it is defined once via an anchor.
 updates:
-  - package-ecosystem: "composer"
+  - &defaults
     directory: "/"
     schedule:
       interval: "weekly"
@@ -18,20 +20,8 @@ updates:
     labels:
       - "dependencies"
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "sunday"
-      time: "02:00"
-      timezone: "Europe/Athens"
-    open-pull-requests-limit: 10
-    groups:
-      dependencies:
-        patterns:
-          - "*"
-        update-types:
-          - "minor"
-          - "patch"
-    labels:
-      - "dependencies"
+  - <<: *defaults
+    package-ecosystem: "composer"
+
+  - <<: *defaults
+    package-ecosystem: "github-actions"

@@ -1,9 +1,10 @@
 <?php
 
 use App\Http\Controllers\ScheduleController;
+use App\Http\Middleware\BearerTokenAuth;
 use Illuminate\Support\Facades\Route;
 
-Route::controller(ScheduleController::class)->group(function () {
+Route::middleware(BearerTokenAuth::class)->controller(ScheduleController::class)->group(function () {
     Route::get('/slots', 'listSlots')->name('slots.list');
     Route::post('/book', 'book')->name('appointments.book');
     Route::delete('/appointments/{appointment}', 'cancel')->name('appointments.cancel');

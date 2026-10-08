@@ -2,33 +2,37 @@
 
 namespace App\Services;
 
-use App\Contracts\SchedulingServiceInterface;
+use App\Exceptions\OutsideWorkingHoursException;
+use App\Exceptions\SlotNotAvailableException;
 use App\Models\Appointment;
 use App\Models\Service;
 use App\Models\Specialist;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 
-class SchedulingService implements SchedulingServiceInterface
+class SchedulingService
 {
     public function getAvailableSlots(Specialist $specialist, Service $service, Carbon $date): array
     {
-        $workStart = $this->getWorkStart($date);
-        $workEnd = $this->getWorkEnd($date);
-        $slotStep = config('salon.slot_step_minutes');
+        $workStart = $this->workStart($date);
+        $workEnd = $this->workEnd($date);
+        $slotStep = (int) config('salon.slot_step_minutes');
 
-        $busyIntervals = $this->getBusyIntervals($specialist, $workStart, $workEnd);
+        $busy = Appointment::forSpecialist($specialist->id)
+            ->active()
+            ->overlapping($workStart, $workEnd)
+            ->orderBy('start_at')
+            ->get();
 
         $slots = [];
-        for ($cursor = $workStart->copy(); $cursor < $workEnd; $cursor->addMinutes($slotStep)) {
-            $start = $cursor->copy();
+        for ($start = $workStart->copy(); $start < $workEnd; $start->addMinutes($slotStep)) {
             $end = $start->copy()->addMinutes($service->duration_minutes);
 
             if ($end > $workEnd) {
                 break;
             }
 
-            if (! $this->hasOverlap($start, $end, $busyIntervals)) {
+            if ($this->isFree($start, $end, $busy)) {
                 $slots[] = [
                     'specialist_id' => $specialist->id,
                     'start_time' => $start->toIso8601String(),
@@ -45,25 +49,17 @@ class SchedulingService implements SchedulingServiceInterface
         return $specialist->services()->whereKey($service->id)->exists();
     }
 
-    public function isWithinWorkingHours(Carbon $start, Carbon $end): bool
-    {
-        $workStart = $this->getWorkStart($start);
-        $workEnd = $this->getWorkEnd($start);
-
-        return $start >= $workStart && $end <= $workEnd;
-    }
-
-    public function hasConflict(Specialist $specialist, Carbon $start, Carbon $end): bool
-    {
-        return Appointment::forSpecialist($specialist->id)
-            ->active()
-            ->overlapping($start, $end)
-            ->exists();
-    }
-
-    public function createAppointment(Specialist $specialist, Service $service, Carbon $start): Appointment
+    public function book(Specialist $specialist, Service $service, Carbon $start): Appointment
     {
         $end = $start->copy()->addMinutes($service->duration_minutes);
+
+        if (! $this->isWithinWorkingHours($start, $end)) {
+            throw new OutsideWorkingHoursException;
+        }
+
+        if ($this->hasConflict($specialist, $start, $end)) {
+            throw new SlotNotAvailableException;
+        }
 
         return Appointment::create([
             'specialist_id' => $specialist->id,
@@ -74,41 +70,41 @@ class SchedulingService implements SchedulingServiceInterface
         ]);
     }
 
-    public function cancelAppointment(Appointment $appointment): void
+    public function cancel(Appointment $appointment): void
     {
         $appointment->update(['canceled' => true]);
     }
 
-    private function getBusyIntervals(Specialist $specialist, Carbon $workStart, Carbon $workEnd): Collection
+    private function isWithinWorkingHours(Carbon $start, Carbon $end): bool
+    {
+        return $start >= $this->workStart($start) && $end <= $this->workEnd($end);
+    }
+
+    private function hasConflict(Specialist $specialist, Carbon $start, Carbon $end): bool
     {
         return Appointment::forSpecialist($specialist->id)
             ->active()
-            ->overlapping($workStart, $workEnd)
-            ->orderBy('start_at')
-            ->get()
-            ->map(fn (Appointment $a) => [
-                Carbon::parse($a->start_at),
-                Carbon::parse($a->end_at),
-            ]);
+            ->overlapping($start, $end)
+            ->exists();
     }
 
-    private function hasOverlap(Carbon $start, Carbon $end, Collection $busyIntervals): bool
+    private function isFree(Carbon $start, Carbon $end, Collection $busy): bool
     {
-        foreach ($busyIntervals as [$bStart, $bEnd]) {
-            if ($start < $bEnd && $end > $bStart) {
-                return true;
+        foreach ($busy as $appointment) {
+            if ($start < $appointment->end_at && $end > $appointment->start_at) {
+                return false;
             }
         }
 
-        return false;
+        return true;
     }
 
-    private function getWorkStart(Carbon $date): Carbon
+    private function workStart(Carbon $date): Carbon
     {
         return Carbon::parse($date->toDateString().' '.config('salon.working_hours.start'));
     }
 
-    private function getWorkEnd(Carbon $date): Carbon
+    private function workEnd(Carbon $date): Carbon
     {
         return Carbon::parse($date->toDateString().' '.config('salon.working_hours.end'));
     }

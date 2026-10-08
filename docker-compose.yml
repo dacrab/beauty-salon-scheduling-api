@@ -2,30 +2,16 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/php/Dockerfile
+    image: beauty-salon-api
     container_name: salon_app
-    volumes:
-      - ./:/var/www/html
+    ports:
+      - "8081:8080"
     environment:
-      - PHP_FPM_LISTEN=9000
+      - API_TOKEN=${API_TOKEN:-demo-token-for-portfolio}
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "php -v || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/up || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
-
-  web:
-    image: nginx:alpine
-    container_name: salon_web
-    ports:
-      - "8081:80"
-    volumes:
-      - ./:/var/www/html
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      app:
-        condition: service_healthy
-    restart: unless-stopped
-
-
+      start_period: 10s
