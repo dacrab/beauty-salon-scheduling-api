@@ -1,6 +1,6 @@
 # Build:  docker build -t beauty-salon-api .
 # Run:    docker run -p 8080:8080 -e API_TOKEN=secret beauty-salon-api
-FROM php:8.3-fpm-alpine
+FROM php:8.6-fpm-alpine@sha256:31d659619113bbf45ca69dfb04c7220f095c2b814d58ea373204aaa237eeb2a1
 
 # nginx + php-fpm run as this unprivileged user (see docker/ for their configs).
 ARG APP_USER=app
@@ -10,7 +10,7 @@ RUN apk add --no-cache nginx icu-dev oniguruma-dev libzip-dev sqlite-dev git bas
     && docker-php-ext-install intl pdo pdo_mysql pdo_sqlite opcache \
     && adduser -D -u ${APP_UID} -s /bin/sh ${APP_USER}
 
-COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+COPY --from=composer:2@sha256:5b2137f112f939a92788ceb5e55f54859d9dbf467a44037cf7760bdda949f365 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
